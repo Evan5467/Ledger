@@ -1,0 +1,34 @@
+name: Check
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: JavaScript files parse
+        run: |
+          for f in www/storage.js www/themes.js www/boot.js www/sw.js www/app.js; do node --check "$f"; done
+      - name: manifest.json is valid
+        run: node -e "JSON.parse(require('fs').readFileSync('www/manifest.json','utf8')); console.log('manifest OK')"
+      - name: No inline scripts or handlers (keeps the security policy strict)
+        run: |
+          if grep -nE '<script(\s[^>]*)?>' www/index.html | grep -v 'src='; then echo "::error::inline <script> found"; exit 1; fi
+          if grep -nEi '\son[a-z]+\s*=\s*["'"'"']' www/index.html; then echo "::error::inline event handler found"; exit 1; fi
+          if grep -nE '\beval\(|new Function\(' www/*.js | grep -v pdf-lib; then echo "::error::eval found"; exit 1; fi
+  no-secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - name: No signing keys or secrets in the repository
+        run: |
+          bad=$(git ls-files | grep -Ei '\.(jks|keystore|p12|pfx|pem|key|p8|b64)$|(^|/)(key|keystore)\.properties$|(^|/)\.env' || true)
+          if [ -n "$bad" ]; then echo "::error::Secret-looking files are committed:"; echo "$bad"; exit 1; fi
+          hits=$(git grep -nEI 'BEGIN ([A-Z]+ )?PRIVATE KEY|storePassword|keyPassword|ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}' -- . ':!.github' ':!SECURITY.md' ':!README.md' || true)
+          if [ -n "$hits" ]; then echo "::error::Possible secret in code:"; echo "$hits"; exit 1; fi
+          echo "clean"
