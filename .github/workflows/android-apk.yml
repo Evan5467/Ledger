@@ -47,6 +47,7 @@ jobs:
 
       - name: App icon
         run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq imagemagick
           R=android/app/src/main/res
           rm -f $R/mipmap-anydpi-v26/ic_launcher.xml $R/mipmap-anydpi-v26/ic_launcher_round.xml
           for pair in mdpi:48 hdpi:72 xhdpi:96 xxhdpi:144 xxxhdpi:192; do
