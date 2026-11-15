@@ -1,0 +1,4 @@
+Inter  - Copyright 2016 The Inter Project Authors (https://github.com/rsms/inter)
+Lora   - Copyright 2011 The Lora Project Authors (https://github.com/cyrealtype/Lora-Cyrillic)
+Both are licensed under the SIL Open Font License, Version 1.1: https://openfontlicense.org
+The files here are Latin-only subsets (plus the rupee sign) of the original fonts.
