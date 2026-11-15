@@ -1,0 +1,12 @@
+{
+  "appId": "app.ledger.expenses",
+  "appName": "Ledger",
+  "webDir": "www",
+  "loggingBehavior": "none",
+  "server": { "androidScheme": "https", "cleartext": false },
+  "android": {
+    "backgroundColor": "#1B2430",
+    "allowMixedContent": false,
+    "webContentsDebuggingEnabled": false
+  }
+}

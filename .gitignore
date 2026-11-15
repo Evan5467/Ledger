@@ -1,0 +1,24 @@
+node_modules/
+android/
+ios/
+*.apk
+*.aab
+.DS_Store
+# --- never commit secrets or signing material ---
+.env
+.env.*
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+*.key
+*.p8
+key.properties
+keystore.properties
+local.properties
+google-services.json
+GoogleService-Info.plist
+*.b64
+signing/
+secrets/
