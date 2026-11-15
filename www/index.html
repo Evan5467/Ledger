@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<title>Ledger — Daily Expenses</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' data: blob: https://cdn.jsdelivr.net https://tessdata.projectnaptha.com; worker-src 'self' blob:; manifest-src 'self'; media-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'" />
+<meta name="referrer" content="no-referrer" />
+<script src="storage.js"></script>
+<script src="themes.js"></script>
+<meta name="theme-color" content="#1B2430" />
+<link rel="manifest" href="manifest.json" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Ledger" />
+<link rel="icon" href="favicon.png" type="image/png" />
+<link rel="icon" href="icon.svg" type="image/svg+xml" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Special+Elite&family=Cormorant+Garamond:wght@500;600;700&family=Playfair+Display:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1B2430;
+    --paper:#F3EAD9;
+    --paper-line:#D8C9AC;
+    --paper-line-soft:#E4D6BA;
+    --rule-red:#B33A32;
+    --ledger-green:#33553B;
+    --ochre:#B9863C;
+    --ink-brown:#2B2118;
+    --muted:#8A7A57;
+    --nav-h: 64px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:var(--ink);
+    font-family:'Inter',sans-serif;
+    color:var(--ink-brown);
+    overscroll-behavior:none;
+  }
+  #app{
+    max-width:480px;
+    margin:0 auto;
+    height:100vh;
+    height:100dvh;
+    background:var(--ink);
+    display:flex;
+    flex-direction:column;
+    position:relative;
+    overflow:hidden;
+  }
+  header.topbar{
+    padding: calc(env(safe-area-inset-top,0px) + 18px) 20px 14px;
+    text-align:center;
+    flex-shrink:0;
+  }
+  .wordmark{
+    font-family:'Special Elite',monospace;
+    font-size:24px;
+    letter-spacing:0.1em;
+    color:var(--paper);
+  }
+  .sub{
+    font-size:11px;
+    letter-spacing:0.08em;
+    color:#8891A0;
+    margin-top:3px;
+    text-transform:uppercase;
+  }
+  main{
+    flex:1 1 auto;
+    min-height:0;
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
+    padding: 0 14px calc(var(--nav-h) + env(safe-area-inset-bottom,0px) + 24px);
+  }
+  .view{ display:none; }
+  .view.active{ display:block; animation: fadein .18s ease-out; }
+  @keyframes fadein{ from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:none;} }
+
+  .card{
+    background:var(--paper);
+    border-radius:14px;
+    padding:16px 18px;
+    margin-bottom:14px;
+    box-shadow:0 6px 18px rgba(0,0,0,0.28);
+  }
+
+  /* Tape */
+  .tape-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .tape-hole{ width:7px; height:7px; border-radius:50%; background:var(--ink); margin:0 auto; }
+  .tape-label{ font-size:10px; letter-spacing:0.1em; color:var(--muted); font-weight:600; }
+  .tape-amount{ font-family:'IBM Plex Mono',monospace; font-size:22px; font-weight:600; margin-top:2px; }
+  .tape-divider{ width:1px; height:32px; background:var(--paper-line); }
+
+  /* Add form */
+  .amount-row{ display:flex; align-items:baseline; border-bottom:1px solid var(--paper-line); padding-bottom:10px; margin-bottom:12px; }
+  .currency{ font-family:'IBM Plex Mono',monospace; font-size:22px; color:var(--ochre); margin-right:6px; }
+  #amountInput{ flex:1; border:none; background:transparent; outline:none; font-family:'IBM Plex Mono',monospace; font-size:28px; color:var(--ink-brown); width:100%; }
+  #amountInput::placeholder{ color:#B0A489; }
+  #noteInput{ width:100%; border:none; border-bottom:1px solid var(--paper-line); background:transparent; outline:none; font-size:15px; color:var(--ink-brown); padding:8px 2px 12px; margin-bottom:14px; font-family:'Inter',sans-serif; }
+  #noteInput::placeholder{ color:#B0A489; }
+
+  .date-row{ display:flex; align-items:center; gap:8px; margin-bottom:16px; }
+  .date-quick{ background:#EADFC5; border:2px solid transparent; border-radius:20px; padding:8px 12px; font-size:12.5px; font-weight:500; color:var(--ink-brown); cursor:pointer; flex-shrink:0; }
+  .date-quick.selected{ border-color:var(--ledger-green); background:#E1EEE2; }
+  #entryDateInput{ flex:1; min-width:0; border:1px solid var(--paper-line); border-radius:20px; padding:7px 12px; font-size:12.5px; color:var(--ink-brown); background:#fff; font-family:'Inter',sans-serif; }
+
+  .cat-grid{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
+  .cat-pill, .pay-pill{ display:flex; align-items:center; gap:6px; background:#EADFC5; border:2px solid transparent; border-radius:20px; padding:8px 12px; font-size:13px; font-weight:500; color:var(--ink-brown); cursor:pointer; }
+  .cat-pill.selected, .pay-pill.selected{ border-color:var(--ledger-green); background:#E1EEE2; }
+  .cat-pill svg, .pay-pill svg{ width:15px; height:15px; }
+
+  .btn{ display:flex; align-items:center; justify-content:center; gap:7px; border:none; border-radius:24px; padding:14px; font-size:15px; font-weight:600; cursor:pointer; width:100%; font-family:'Inter',sans-serif; }
+  .btn-primary{ background:var(--ledger-green); color:var(--paper); }
+  .btn-outline{ background:transparent; color:var(--ink-brown); border:1.5px solid var(--paper-line); }
+  .btn svg{ width:17px; height:17px; }
+  .error-text{ color:var(--rule-red); font-size:12px; margin-top:8px; text-align:center; }
+
+  #voiceBtn.listening{ background:var(--rule-red); animation:pulse 1.4s ease-in-out infinite; }
+  @keyframes pulse{ 0%,100%{ opacity:1; } 50%{ opacity:0.72; } }
+  @media (prefers-reduced-motion: reduce){ #voiceBtn.listening{ animation:none; } }
+
+  /* today mini list */
+  .section-label{ font-size:11px; letter-spacing:0.08em; color:#8891A0; font-weight:600; margin:18px 4px 8px; text-transform:uppercase; }
+
+  /* history */
+  .search-wrap{ display:flex; align-items:center; gap:8px; background:var(--paper); border-radius:12px; padding:10px 14px; margin-bottom:12px; }
+  .search-wrap svg{ width:16px; height:16px; color:var(--muted); flex-shrink:0; }
+  #searchInput{ flex:1; border:none; background:transparent; outline:none; font-size:14px; color:var(--ink-brown); font-family:'Inter',sans-serif; }
+  #searchInput::placeholder{ color:#B0A489; }
+  #monthFilter{ border:none; background:transparent; outline:none; font-size:13px; color:var(--muted); font-family:'Inter',sans-serif; }
+
+  .day-block{ margin-bottom:4px; }
+  .day-heading{ display:flex; justify-content:space-between; font-size:11px; letter-spacing:0.08em; color:var(--muted); font-weight:700; padding:10px 4px 6px; text-transform:uppercase; }
+  .day-total{ font-family:'IBM Plex Mono',monospace; color:#5B6470; }
+  .entry-row{ display:flex; align-items:center; gap:10px; padding:11px 4px; border-bottom:1px dashed var(--paper-line-soft); background:var(--paper); }
+  .day-block .entry-row:first-of-type{ border-top-left-radius:10px; border-top-right-radius:10px; }
+  .entry-icon{ width:28px; height:28px; border-radius:50%; background:#EADFC5; display:flex; align-items:center; justify-content:center; color:#5B6470; flex-shrink:0; }
+  .entry-icon svg{ width:15px; height:15px; }
+  .entry-note{ flex:1; font-size:13.5px; min-width:0; }
+  .entry-cat{ font-size:10px; color:#B0A489; text-transform:uppercase; letter-spacing:0.06em; margin-top:2px; }
+  .entry-amount{ font-family:'IBM Plex Mono',monospace; font-size:14px; font-weight:600; flex-shrink:0; }
+  .del-btn{ background:transparent; border:none; color:var(--rule-red); padding:6px; flex-shrink:0; cursor:pointer; }
+  .del-btn svg{ width:14px; height:14px; display:block; }
+  .entry-main{ display:flex; align-items:center; gap:10px; flex:1; min-width:0; cursor:pointer; }
+  .empty{ color:var(--muted); font-size:13px; text-align:center; padding:32px 10px; font-style:italic; background:var(--paper); border-radius:14px; }
+
+  /* edit modal + confirm dialog */
+  .modal-overlay{ display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:110; align-items:flex-end; justify-content:center; }
+  .modal-overlay.show{ display:flex; }
+  .modal-sheet{ background:var(--paper); width:100%; max-width:480px; border-radius:20px 20px 0 0; padding:20px 18px calc(20px + env(safe-area-inset-bottom,0px)); max-height:88vh; overflow-y:auto; }
+  .modal-title{ font-family:'Special Elite',serif; font-size:18px; color:var(--ink-brown); margin-bottom:14px; }
+  .modal-actions{ display:flex; gap:10px; margin-top:16px; }
+  .modal-actions .btn{ flex:1; }
+  .btn-danger{ background:var(--rule-red); color:var(--paper); }
+  .confirm-card{ background:var(--paper); width:100%; max-width:360px; border-radius:16px; padding:22px 20px; text-align:center; }
+  .confirm-card .modal-title{ margin-bottom:6px; }
+  .confirm-card p{ font-size:13px; color:var(--muted); margin:0 0 18px; line-height:1.5; }
+  #confirmOverlay{ align-items:center; }
+
+  /* export */
+  .export-row{ display:flex; align-items:center; justify-content:space-between; padding:10px 0; border-bottom:1px solid var(--paper-line-soft); font-size:14px; }
+  .export-row:last-child{ border-bottom:none; }
+  .export-row .val{ font-family:'IBM Plex Mono',monospace; font-weight:600; }
+  select{ font-family:'IBM Plex Mono',monospace; font-size:15px; padding:8px 10px; border-radius:8px; border:1px solid var(--paper-line); background:#fff; color:var(--ink-brown); }
+  .hint{ font-size:12px; color:var(--muted); line-height:1.5; margin-top:10px; }
+  .copied-toast{ position:fixed; bottom:calc(var(--nav-h) + 20px); left:50%; transform:translateX(-50%); background:var(--ink-brown); color:var(--paper); padding:10px 18px; border-radius:20px; font-size:13px; opacity:0; pointer-events:none; transition:opacity .2s; z-index:50; }
+
+  /* scan */
+  .scan-row{ display:grid; grid-template-columns: 1fr auto; gap:6px 8px; padding:12px 0; border-bottom:1px dashed var(--paper-line-soft); }
+  .scan-row:last-child{ border-bottom:none; }
+  .scan-row-fields{ display:flex; flex-wrap:wrap; gap:6px; }
+  .scan-row input[type="text"], .scan-row input[type="number"], .scan-row input[type="date"], .scan-row select{
+    border:1px solid var(--paper-line); border-radius:8px; padding:7px 8px; font-size:13px; background:#fff; color:var(--ink-brown); font-family:'Inter',sans-serif;
+  }
+  .scan-row input[type="text"]{ flex:1 1 100%; }
+  .scan-row input[type="date"]{ flex:1 1 128px; }
+  .scan-row input[type="number"]{ flex:1 1 90px; font-family:'IBM Plex Mono',monospace; }
+  .scan-row select{ flex:1 1 110px; }
+  .scan-row-top{ display:flex; align-items:flex-start; gap:8px; }
+  .scan-row-top input[type="checkbox"]{ width:18px; height:18px; margin-top:8px; accent-color:var(--ledger-green); flex-shrink:0; }
+  .scan-del{ background:transparent; border:none; color:var(--rule-red); padding:6px; cursor:pointer; flex-shrink:0; }
+  .scan-del svg{ width:15px; height:15px; display:block; }
+  .scan-thumb{ position:relative; width:72px; height:72px; border-radius:8px; overflow:hidden; flex-shrink:0; }
+  .scan-thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .scan-thumb-remove{ position:absolute; top:2px; right:2px; width:20px; height:20px; border-radius:50%; background:rgba(27,36,48,0.75); border:none; color:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer; padding:0; }
+  .scan-thumb-remove svg{ width:11px; height:11px; }
+  .copied-toast.show{ opacity:1; }
+
+  /* bottom nav */
+  nav.bottomnav{
+    position:fixed;
+    left:50%;
+    bottom:0;
+    transform:translateX(-50%);
+    width:100%;
+    max-width:480px;
+    display:flex;
+    background:rgba(27,36,48,0.96);
+    backdrop-filter: blur(10px);
+    border-top:1px solid rgba(255,255,255,0.08);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+    height:calc(var(--nav-h) + env(safe-area-inset-bottom,0px));
+    z-index:20;
+  }
+  nav.bottomnav button{
+    flex:1; background:none; border:none; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;
+    color:#6C7686; cursor:pointer; padding:8px 0 4px;
+  }
+  nav.bottomnav button svg{ width:21px; height:21px; }
+  nav.bottomnav button span{ font-size:10px; letter-spacing:0.03em; font-weight:600; }
+  nav.bottomnav button.active{ color:var(--ochre); }
+
+  /* ===== settings button, lock, income, report (added) ===== */
+  header.topbar{ position:relative; }
+  .settings-btn{ position:absolute; top:calc(env(safe-area-inset-top,0px) + 14px); right:14px; background:none; border:none; padding:8px; color:#8891A0; cursor:pointer; }
+  .settings-btn svg{ width:20px; height:20px; display:block; }
+  .modal-sheet.dark{ background:var(--ink); color:var(--paper); }
+  .modal-sheet.dark .modal-title{ color:var(--paper); }
+  .modal-sheet.dark .btn-outline{ color:var(--paper); border-color:rgba(255,255,255,0.22); }
+  .modal-sheet.dark .hint{ color:#8891A0; }
+  #askOverlay{ z-index:400; align-items:center; }
+
+  html .lock-screen{ display:none; position:fixed; inset:0; z-index:300; background:var(--ink); flex-direction:column; align-items:center; justify-content:center; padding:24px; text-align:center; overflow-y:auto; }
+  html.locked .lock-screen{ display:flex; }
+  .privacy-cover{ display:none; position:fixed; inset:0; z-index:290; background:var(--ink); align-items:center; justify-content:center; }
+  html.privacy .privacy-cover{ display:flex; }
+  .lock-wordmark{ font-family:'Special Elite',monospace; font-size:24px; letter-spacing:0.1em; color:var(--paper); margin-bottom:4px; }
+  .lock-sub{ font-size:12.5px; color:#8891A0; margin-bottom:26px; }
+  .lock-dots{ display:flex; gap:14px; margin-bottom:18px; height:14px; justify-content:center; }
+  .lock-dot{ width:14px; height:14px; border-radius:50%; border:1.5px solid #56607A; background:transparent; transition:background .12s,border-color .12s; }
+  .lock-dot.filled{ background:var(--ochre); border-color:var(--ochre); }
+  .lock-error{ color:#E08A80; font-size:12.5px; margin-bottom:14px; min-height:16px; }
+  .keypad{ display:grid; grid-template-columns:repeat(3,64px); gap:14px; justify-content:center; margin-bottom:10px; }
+  .keypad-btn{ width:64px; height:64px; border-radius:50%; background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.12); color:var(--paper); font-size:22px; font-family:'IBM Plex Mono',monospace; display:flex; align-items:center; justify-content:center; cursor:pointer; padding:0; }
+  .keypad-btn:active{ background:rgba(255,255,255,0.18); }
+  .keypad-btn.ghost{ background:none; border:none; cursor:default; }
+  .biometric-btn{ display:flex; align-items:center; gap:8px; justify-content:center; background:rgba(185,134,60,0.18); border:1px solid var(--ochre); color:var(--ochre); border-radius:24px; padding:12px 20px; font-size:14px; font-weight:600; cursor:pointer; margin-bottom:22px; }
+  .biometric-btn svg{ width:18px; height:18px; }
+  .lock-link{ background:none; border:none; color:#6C7686; font-size:12px; text-decoration:underline; cursor:pointer; margin-top:22px; font-family:'Inter',sans-serif; }
+  .shake{ animation:shake .35s; }
+  @keyframes shake{ 0%,100%{transform:translateX(0);} 20%{transform:translateX(-8px);} 40%{transform:translateX(8px);} 60%{transform:translateX(-5px);} 80%{transform:translateX(5px);} }
+  .pattern-grid{ display:grid; grid-template-columns:repeat(3,64px); grid-template-rows:repeat(3,64px); gap:26px; margin:0 auto 18px; position:relative; touch-action:none; user-select:none; -webkit-user-select:none; }
+  .pattern-dot{ width:64px; height:64px; display:flex; align-items:center; justify-content:center; }
+  .pattern-dot::before{ content:''; width:16px; height:16px; border-radius:50%; background:rgba(255,255,255,0.18); border:1.5px solid #56607A; transition:all .1s; }
+  .pattern-dot.active::before{ background:var(--ochre); border-color:var(--ochre); transform:scale(1.25); }
+  .pattern-svg{ position:absolute; inset:0; pointer-events:none; width:100%; height:100%; overflow:visible; }
+  .pattern-svg line{ stroke:var(--ochre); stroke-width:3.5; stroke-linecap:round; }
+
+  .lock-settings-row{ display:flex; align-items:center; justify-content:space-between; padding:12px 0; border-bottom:1px solid var(--paper-line-soft); gap:12px; }
+  .lock-settings-row .lbl{ font-size:13.5px; color:var(--ink-brown); }
+  .lock-settings-row .lbl small{ display:block; font-size:11px; color:var(--muted); margin-top:2px; font-weight:400; }
+  .toggle-switch{ position:relative; width:44px; height:26px; border-radius:14px; background:#D8C9AC; border:none; flex-shrink:0; cursor:pointer; padding:0; }
+  .toggle-switch::after{ content:''; position:absolute; top:3px; left:3px; width:20px; height:20px; border-radius:50%; background:#fff; transition:transform .15s; box-shadow:0 1px 3px rgba(0,0,0,0.3); }
+  .toggle-switch.on{ background:var(--ledger-green); }
+  .toggle-switch.on::after{ transform:translateX(18px); }
+
+  .big-amount{ flex:1; border:none; background:transparent; outline:none; font-family:'IBM Plex Mono',monospace; font-size:28px; color:var(--ink-brown); width:100%; }
+  .line-input{ width:100%; border:none; border-bottom:1px solid var(--paper-line); background:transparent; outline:none; font-size:15px; color:var(--ink-brown); padding:8px 2px 12px; margin-bottom:14px; font-family:'Inter',sans-serif; }
+  .date-input{ flex:1; min-width:0; border:1px solid var(--paper-line); border-radius:20px; padding:7px 12px; font-size:12.5px; color:var(--ink-brown); background:#fff; font-family:'Inter',sans-serif; }
+  .balance-row{ display:flex; justify-content:space-between; align-items:center; padding:9px 0 0; margin-top:10px; border-top:1px dashed var(--paper-line); font-size:13px; color:var(--muted); }
+  .balance-row b{ font-family:'IBM Plex Mono',monospace; font-size:15px; }
+  .bal-pos{ color:var(--ledger-green); } .bal-neg{ color:var(--rule-red); }
+  .income-amount{ color:var(--ledger-green); }
+  .month-pick{ border:none; background:transparent; font-size:13px; color:var(--muted); font-family:'Inter',sans-serif; }
+  .rpt-fields{ display:flex; gap:8px; margin:2px 0 12px; flex-wrap:wrap; }
+  .rpt-fields .date-input{ flex:1 1 130px; border-radius:10px; }
+  .rpt-fields label{ font-size:11px; color:var(--muted); display:block; margin:0 0 3px 4px; }
+  .rpt-fields > div{ flex:1 1 130px; }
+  .backup-banner{ display:flex; align-items:center; gap:10px; background:#F8E9C8; border:1px solid var(--ochre); }
+  .backup-banner .txt{ flex:1; font-size:12.5px; line-height:1.4; color:var(--ink-brown); }
+  .backup-banner button{ border:none; border-radius:16px; padding:8px 12px; font-size:12px; font-weight:600; cursor:pointer; font-family:'Inter',sans-serif; }
+</style>
+<link rel="stylesheet" href="themes.css">
+<link rel="stylesheet" href="fonts.css">
+<link rel="stylesheet" href="designs.css">
+</head>
+<body>
+<div id="app">
+  <header class="topbar">
+    <button class="settings-btn" id="settingsBtn" aria-label="Settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg>
+    </button>
+    <div class="wordmark">LEDGER</div>
+    <div class="sub" id="todayDateLine"></div>
+  </header>
+
+  <main>
+    <!-- ADD / HOME VIEW -->
+    <section class="view active" id="view-add">
+      <div class="card backup-banner" id="backupBanner" style="display:none;">
+        <div class="txt"><b>Back up your data.</b> A backup file lets you restore everything if the app's data is ever cleared or you move to a new phone.</div>
+        <button style="background:var(--ledger-green);color:var(--paper);" id="backupNowBtn">Back up</button>
+        <button style="background:transparent;color:var(--muted);" id="backupLaterBtn">Later</button>
+      </div>
+
+      <div class="card">
+        <div class="tape-row">
+          <div>
+            <div class="tape-label">TODAY</div>
+            <div class="tape-amount" id="todayTotal">₹0.00</div>
+          </div>
+          <div class="tape-divider"></div>
+          <div>
+            <div class="tape-label">THIS MONTH</div>
+            <div class="tape-amount" id="monthTotal">₹0.00</div>
+          </div>
+        </div>
+        <div class="balance-row" id="homeBalanceRow" style="display:none;"><span>Balance this month <span style="font-size:11px;">(received − spent)</span></span><b id="homeBalance">₹0.00</b></div>
+      </div>
+
+      <div class="card" id="voiceCard">
+        <button type="button" class="btn btn-primary" id="voiceBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15a3 3 0 003-3V6a3 3 0 00-6 0v6a3 3 0 003 3z"/><path d="M19 11a7 7 0 01-14 0M12 18v3"/></svg>
+          Speak an entry
+        </button>
+        <div class="hint" id="voiceStatus" style="margin-top:10px; text-align:center; display:none;"></div>
+      </div>
+
+      <div class="card">
+        <div class="amount-row">
+          <span class="currency">₹</span>
+          <input id="amountInput" type="number" inputmode="decimal" step="0.01" placeholder="0.00" />
+        </div>
+        <input id="noteInput" type="text" placeholder="What was it for?" />
+
+        <div class="date-row">
+          <button type="button" class="date-quick" id="dateQuickToday">Today</button>
+          <button type="button" class="date-quick" id="dateQuickYesterday">Yesterday</button>
+          <input type="date" id="entryDateInput" />
+        </div>
+
+        <div class="cat-grid" id="catGrid"></div>
+        <div id="metroBlock" style="display:none;">
+          <div class="section-label" style="margin:2px 4px 8px;">Metro card</div>
+          <div class="cat-grid" id="metroCardGrid" style="margin-bottom:8px;"></div>
+          <div class="cat-grid" id="metroKindGrid" style="margin-bottom:6px;"></div>
+          <div class="hint" id="metroKindHint" style="margin:0 4px 14px;"></div>
+        </div>
+        <div id="payBlock">
+          <div class="section-label" style="margin:2px 4px 8px;">Paid via</div>
+          <div class="cat-grid" id="paymentGrid" style="margin-bottom:16px;"></div>
+        </div>
+        <button class="btn btn-primary" id="logBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+          Log it
+        </button>
+        <div class="error-text" id="errorText" style="display:none;"></div>
+      </div>
+
+      <div class="section-label" id="addListLabel">Today's entries</div>
+      <div id="todayList"></div>
+    </section>
+
+    <!-- HISTORY VIEW -->
+    <section class="view" id="view-history">
+      <div class="search-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input id="searchInput" type="text" placeholder="Search notes…" />
+        <input id="monthFilter" type="month" />
+      </div>
+      <div id="historyList"></div>
+    </section>
+
+    <!-- INCOME VIEW -->
+    <section class="view" id="view-income">
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <div class="tape-label" id="incMonthLbl">THIS MONTH</div>
+          <input type="month" id="incMonthInput" class="month-pick" />
+        </div>
+        <div class="tape-row">
+          <div>
+            <div class="tape-label">RECEIVED</div>
+            <div class="tape-amount income-amount" id="incReceived">₹0.00</div>
+          </div>
+          <div class="tape-divider"></div>
+          <div>
+            <div class="tape-label">SPENT</div>
+            <div class="tape-amount" id="incSpent">₹0.00</div>
+          </div>
+        </div>
+        <div class="balance-row"><span>Balance this month</span><b id="incBalance">₹0.00</b></div>
+        <div class="balance-row" style="border-top:none; padding-top:4px; margin-top:0;"><span>All-time balance</span><b id="incBalanceAll">₹0.00</b></div>
+      </div>
+
+      <div class="card">
+        <div class="section-label" style="margin-top:0;">Add money received</div>
+        <div class="amount-row">
+          <span class="currency">₹</span>
+          <input id="incAmount" class="big-amount" type="number" inputmode="decimal" step="0.01" placeholder="0.00" />
+        </div>
+        <input id="incNote" class="line-input" type="text" placeholder="From whom / note (optional)" />
+        <div class="date-row">
+          <button type="button" class="date-quick" id="incQuickToday">Today</button>
+          <button type="button" class="date-quick" id="incQuickYesterday">Yesterday</button>
+          <input type="date" id="incDate" class="date-input" />
+        </div>
+        <div class="cat-grid" id="incTypeGrid"></div>
+        <button class="btn btn-primary" id="incAddBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+          Add income
+        </button>
+        <div class="error-text" id="incError" style="display:none;"></div>
+      </div>
+
+      <div class="section-label" id="incListLabel">Money received</div>
+      <div id="incomeList"></div>
+    </section>
+
+    <!-- SCAN VIEW -->
+    <section class="view" id="view-scan">
+      <div class="card">
+        <div class="section-label" style="margin-top:0;">Scan old notes</div>
+        <div class="hint" style="margin-top:0; margin-bottom:14px;">Photograph pages where you'd written expenses by hand or in a notebook — add as many as you need, from the camera or your gallery. The app reads them all and lists out what it can find, and you check each line before it's saved.</div>
+
+        <input type="file" id="scanCameraInput" accept="image/*" capture="environment" style="display:none;" />
+        <input type="file" id="scanGalleryInput" accept="image/*" multiple style="display:none;" />
+        <div style="display:flex; gap:10px;">
+          <button class="btn btn-outline" id="scanCameraBtn" style="flex:1;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7V5a1 1 0 011-1h2M4 17v2a1 1 0 001 1h2M20 7V5a1 1 0 00-1-1h-2M20 17v2a1 1 0 01-1 1h-2"/><circle cx="12" cy="12" r="3.5"/></svg>
+            Take photo
+          </button>
+          <button class="btn btn-outline" id="scanGalleryBtn" style="flex:1;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+            Upload photos
+          </button>
+        </div>
+
+        <div id="scanPreviewWrap" style="display:none; margin-top:14px;">
+          <div class="hint" style="margin-top:0; margin-bottom:8px;" id="scanCountLabel"></div>
+          <div id="scanThumbs" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
+          <button class="btn btn-primary" id="scanExtractBtn" style="margin-top:12px;">Read these photos</button>
+        </div>
+
+        <div id="scanProgressWrap" style="display:none; margin-top:14px;">
+          <div style="background:var(--chip); border-radius:8px; height:8px; overflow:hidden;">
+            <div id="scanProgressBar" style="background:var(--ledger-green); height:100%; width:0%; transition:width .2s;"></div>
+          </div>
+          <div class="hint" id="scanProgressText" style="text-align:center; margin-top:8px;">Reading…</div>
+        </div>
+      </div>
+
+      <div id="scanResultsWrap" style="display:none;">
+        <div class="section-label">Found these lines — check &amp; edit</div>
+        <div class="card" id="scanRowsCard" style="padding:10px 14px;"></div>
+        <button class="btn btn-outline" id="scanAddRowBtn" style="margin-bottom:12px;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+          Add a blank line
+        </button>
+        <button class="btn btn-primary" id="scanSaveBtn">Save checked entries</button>
+      </div>
+    </section>
+
+    <!-- EXPORT VIEW -->
+    <section class="view" id="view-export">
+      <div class="card">
+        <div class="section-label" style="margin-top:0;">What to export</div>
+        <div class="hint" style="margin-top:0; margin-bottom:12px;">Pick the period. It applies to everything below: image, PDF, JSON, CSV and text.</div>
+        <div class="cat-grid" id="rptKindGrid" style="margin-bottom:10px;"></div>
+        <div class="rpt-fields" id="rptFields">
+          <div data-k="day"><label>Day</label><input type="date" id="rptDay" class="date-input" /></div>
+          <div data-k="week"><label>Any day in the week (Mon–Sun)</label><input type="date" id="rptWeek" class="date-input" /></div>
+          <div data-k="month"><label>Month</label><input type="month" id="rptMonth" class="date-input" /></div>
+          <div data-k="range"><label>From</label><input type="date" id="rptFrom" class="date-input" /></div>
+          <div data-k="range"><label>To</label><input type="date" id="rptTo" class="date-input" /></div>
+        </div>
+        <div class="export-row" style="border-bottom:none; padding-bottom:4px;"><span>Include money received (PDF and JSON)</span><button class="toggle-switch on" id="rptIncToggle" aria-label="Include income"></button></div>
+        <div class="hint" id="rptPreview" style="margin:4px 0 0;"></div>
+      </div>
+
+      <div class="card">
+        <div class="section-label" style="margin-top:0;">Format</div>
+        <div class="cat-grid" id="expFormatGrid" style="margin-bottom:6px;"></div>
+        <div class="hint" id="expFormatHint" style="margin:0 4px 12px;"></div>
+        <div id="expGroupWrap">
+          <div class="section-label" style="margin:2px 4px 8px;">Group as</div>
+          <div class="cat-grid" id="groupModeGrid" style="margin-bottom:4px;"></div>
+          <div class="hint" style="margin-top:0; margin-bottom:14px;">"By day" lists day by day. "By section" splits everything into Travel, Food and Other with a total for each.</div>
+        </div>
+        <button class="btn btn-primary" id="expShareBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 10.6l6.8-3.8M8.6 13.4l6.8 3.8"/></svg>
+          <span id="expShareLabel">Share</span>
+        </button>
+        <div style="display:flex; gap:10px; margin-top:10px;">
+          <button class="btn btn-outline" id="expDownloadBtn" style="flex:1;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg>
+            <span id="expDownloadLabel">Download</span>
+          </button>
+          <button class="btn btn-outline" id="expExtraBtn" style="flex:1;"></button>
+        </div>
+        <div class="hint" id="shareHint" style="margin-top:8px;">On a phone, Share opens your normal share sheet (WhatsApp, Mail, Drive…). If it isn't available, the file downloads instead.</div>
+        <div class="error-text" id="rptError" style="display:none;"></div>
+      </div>
+
+
+      <div class="card">
+        <div class="section-label" style="margin-top:0;">Import entries</div>
+        <div class="hint" style="margin-top:0; margin-bottom:12px;">Bring in expenses from a backup file (.json) — from a previous export, or one someone put together for you. Entries land under their own dates automatically.</div>
+        <input type="file" id="importFileInput" accept="application/json,.json" style="display:none;" />
+        <button class="btn btn-outline" id="importBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21V9m0 0l-4 4m4-4l4 4M4 3h16"/></svg>
+          Choose file to import
+        </button>
+        <div class="hint" id="importStatus" style="margin-top:8px;"></div>
+      </div>
+    </section>
+
+    <!-- IMAGE PREVIEW OVERLAY -->
+    <div id="imageOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:100; align-items:center; justify-content:center; flex-direction:column; padding:20px;">
+      <div style="max-width:420px; width:100%; max-height:80vh; overflow-y:auto; border-radius:10px; box-shadow:0 10px 40px rgba(0,0,0,0.5);">
+        <canvas id="receiptCanvas" style="width:100%; display:block;"></canvas>
+      </div>
+      <div style="display:flex; gap:10px; margin-top:16px; width:100%; max-width:420px;">
+        <button class="btn btn-outline" id="closeImageBtn" style="background:var(--paper);">Close</button>
+        <button class="btn btn-primary" id="shareImageBtn">Share image</button>
+      </div>
+    </div>
+
+    <!-- EDIT ENTRY MODAL -->
+    <div class="modal-overlay" id="editOverlay">
+      <div class="modal-sheet">
+        <div class="modal-title">Edit entry</div>
+        <div class="amount-row">
+          <span class="currency">₹</span>
+          <input id="editAmountInput" type="number" inputmode="decimal" step="0.01" placeholder="0.00" />
+        </div>
+        <input id="editNoteInput" type="text" placeholder="What was it for?" style="margin-bottom:16px;" />
+        <input type="date" id="editDateInput" style="margin-bottom:16px;" />
+
+        <div class="cat-grid" id="editCatGrid"></div>
+        <div id="editMetroBlock" style="display:none;">
+          <div class="section-label" style="margin:2px 4px 8px;">Metro card</div>
+          <div class="cat-grid" id="editMetroCardGrid" style="margin-bottom:8px;"></div>
+          <div class="cat-grid" id="editMetroKindGrid" style="margin-bottom:12px;"></div>
+        </div>
+        <div id="editPayBlock">
+          <div class="section-label" style="margin:2px 4px 8px;">Paid via</div>
+          <div class="cat-grid" id="editPayGrid" style="margin-bottom:4px;"></div>
+        </div>
+        <div class="error-text" id="editErrorText" style="display:none;"></div>
+
+        <div class="modal-actions">
+          <button class="btn btn-outline" id="editCancelBtn">Cancel</button>
+          <button class="btn btn-primary" id="editSaveBtn">Save changes</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- DELETE CONFIRM DIALOG -->
+    <div class="modal-overlay" id="confirmOverlay">
+      <div class="confirm-card">
+        <div class="modal-title">Delete this entry?</div>
+        <p id="confirmEntryDesc">This can't be undone.</p>
+        <div class="modal-actions">
+          <button class="btn btn-outline" id="confirmCancelBtn">Cancel</button>
+          <button class="btn btn-danger" id="confirmDeleteBtn">Delete</button>
+        </div>
+      </div>
+    </div>
+    <!-- SETTINGS SHEET -->
+    <div class="modal-overlay" id="settingsOverlay">
+      <div class="modal-sheet">
+        <div class="modal-title">Settings</div>
+
+        <div class="section-label" style="margin-top:0;">Appearance</div>
+        <div class="theme-grid" id="themeGrid"></div>
+
+        <div class="section-label">App lock</div>
+        <div class="hint" style="margin-top:0; margin-bottom:4px;">Asks for a code before the app opens. It keeps casual snoopers out; your entries are still stored unencrypted on this device.</div>
+        <div class="lock-settings-row">
+          <div class="lbl">App lock<small id="lockStateHint">Off</small></div>
+          <button class="toggle-switch" id="lockToggle" aria-label="App lock"></button>
+        </div>
+        <div id="lockOptions" style="display:none;">
+          <div class="lock-settings-row" id="bioRow" style="display:none;">
+            <div class="lbl">Fingerprint / face unlock<small>Uses your phone's own screen-lock biometrics</small></div>
+            <button class="toggle-switch" id="bioToggle" aria-label="Biometric unlock"></button>
+          </div>
+          <div class="lock-settings-row" style="border-bottom:none;">
+            <div class="lbl">Change PIN or pattern</div>
+            <button class="btn btn-outline" style="width:auto; padding:9px 16px;" id="lockChangeBtn">Change</button>
+          </div>
+        </div>
+        <div class="error-text" id="settingsError" style="display:none; margin-top:8px;"></div>
+
+        <div class="section-label">Backup</div>
+        <button class="btn btn-outline" id="backupBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg>
+          Download full backup
+        </button>
+        <div class="hint" id="backupHint"></div>
+        <div class="hint">To restore: Export tab → Import entries → choose the backup file. Entries already in the app are skipped, so it's safe to import twice.</div>
+
+        <div class="section-label">Where your data is saved</div>
+        <div class="hint" id="storageInfo" style="margin-top:0;"></div>
+
+        <div class="modal-actions"><button class="btn btn-primary" id="settingsCloseBtn">Done</button></div>
+      </div>
+    </div>
+
+    <!-- LOCK SETUP SHEET -->
+    <div class="modal-overlay" id="lockSetupOverlay" style="z-index:120;">
+      <div class="modal-sheet dark" style="text-align:center;">
+        <div class="modal-title" id="setupTitle">Set up app lock</div>
+        <div class="cat-grid" id="setupMethodGrid" style="justify-content:center; margin-bottom:12px;"></div>
+        <div class="hint" id="setupHint" style="margin:0 0 16px;"></div>
+        <div id="setupPinArea">
+          <div class="lock-dots" id="setupDots"></div>
+          <div class="keypad" id="setupKeypad"></div>
+        </div>
+        <div id="setupPatternArea" style="display:none;">
+          <div class="pattern-grid" id="setupPatternGrid"><svg class="pattern-svg" id="setupPatternSvg"></svg></div>
+        </div>
+        <div class="lock-error" id="setupError"></div>
+        <div class="modal-actions"><button class="btn btn-outline" id="setupCancelBtn">Cancel</button></div>
+      </div>
+    </div>
+
+    <!-- INCOME EDIT -->
+    <div class="modal-overlay" id="incEditOverlay">
+      <div class="modal-sheet">
+        <div class="modal-title">Edit income</div>
+        <div class="amount-row"><span class="currency">₹</span><input id="incEditAmount" class="big-amount" type="number" inputmode="decimal" step="0.01" /></div>
+        <input id="incEditNote" class="line-input" type="text" placeholder="From whom / note (optional)" />
+        <input type="date" id="incEditDate" class="date-input" style="width:100%; margin-bottom:16px; flex:none;" />
+        <div class="cat-grid" id="incEditTypeGrid"></div>
+        <div class="error-text" id="incEditError" style="display:none;"></div>
+        <div class="modal-actions">
+          <button class="btn btn-outline" id="incEditCancel">Cancel</button>
+          <button class="btn btn-primary" id="incEditSave">Save changes</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- GENERIC CONFIRM -->
+    <div class="modal-overlay" id="askOverlay">
+      <div class="confirm-card">
+        <div class="modal-title" id="askTitle">Are you sure?</div>
+        <p id="askText"></p>
+        <div class="modal-actions">
+          <button class="btn btn-outline" id="askCancel">Cancel</button>
+          <button class="btn btn-danger" id="askOk">OK</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- PRIVACY COVER (shown while app is in the background) -->
+    <div class="privacy-cover" id="privacyCover"><div class="lock-wordmark">LEDGER</div></div>
+
+    <!-- LOCK SCREEN -->
+    <div class="lock-screen" id="lockScreen">
+      <div class="lock-wordmark">LEDGER</div>
+      <div class="lock-sub" id="lockSub">Enter your code to continue</div>
+      <button class="biometric-btn" id="lockBioBtn" style="display:none;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 11a3 3 0 013 3v1a7 7 0 01-1.5 4.3M9 20.5A9 9 0 0121 14v-2a9 9 0 00-15.3-6.4M4.5 9A9 9 0 004 12v1a9 9 0 001.5 5M12 3a9 9 0 016.4 2.6M8 14a4 4 0 018 0v1a5 5 0 01-1 3"/></svg>
+        Use fingerprint / face
+      </button>
+      <div id="lockPinArea">
+        <div class="lock-dots" id="lockDots"></div>
+        <div class="keypad" id="lockKeypad"></div>
+      </div>
+      <div id="lockPatternArea" style="display:none;">
+        <div class="pattern-grid" id="lockPatternGrid"><svg class="pattern-svg" id="lockPatternSvg"></svg></div>
+      </div>
+      <div class="lock-error" id="lockError"></div>
+      <button class="lock-link" id="lockCancelBtn" style="display:none;">Cancel</button>
+      <button class="lock-link" id="lockForgotBtn">Forgot code?</button>
+    </div>
+  </main>
+
+  <nav class="bottomnav">
+    <button class="nav-btn active" data-view="add">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+      <span>Add</span>
+    </button>
+    <button class="nav-btn" data-view="history">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+      <span>History</span>
+    </button>
+    <button class="nav-btn" data-view="income">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 012-2h13v4"/><path d="M3 7v11a2 2 0 002 2h15V9H5a2 2 0 01-2-2z"/><circle cx="16.5" cy="14.5" r="1"/></svg>
+      <span>Income</span>
+    </button>
+    <button class="nav-btn" data-view="scan">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7V5a1 1 0 011-1h2M4 17v2a1 1 0 001 1h2M20 7V5a1 1 0 00-1-1h-2M20 17v2a1 1 0 01-1 1h-2"/><circle cx="12" cy="12" r="3.5"/></svg>
+      <span>Scan</span>
+    </button>
+    <button class="nav-btn" data-view="export">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg>
+      <span>Export</span>
+    </button>
+  </nav>
+
+  <div class="copied-toast" id="toast">Copied to clipboard</div>
+</div>
+
+<script src="pdf-lib.min.js"></script>
+<script src="boot.js"></script></script>
+</body>
+</html>
