@@ -18,6 +18,6 @@
     "@capacitor-community/speech-recognition": "^6.0.1"
   },
   "devDependencies": {
-    "@capacitor/cli": "^6.1.2"
+    "@capacitor/cli": "^8.6.2"
   }
 }
