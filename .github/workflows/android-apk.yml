@@ -91,7 +91,7 @@ jobs:
         if: always()
         run: rm -f "$RUNNER_TEMP"/ledger-upload.p12 "$RUNNER_TEMP"/aligned.apk
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: Ledger-apk
           path: |
